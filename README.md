@@ -7,7 +7,7 @@ AWSのEC2上に置いたminecraft serverを起動するdiscordBOTを作る。
 - AWS_RESION
 - PUBLIC_KEY
 - DISCORD_BOT_TOKEN
-- APPLICATION_ID
+- APPLICATION_ID \
 を記載。
 
 ## 構成
@@ -20,18 +20,18 @@ AWS-EC2-discordbot/ \
 　　　　├ start.py \
 　　　　├ stop.py \
 　　　　└ status.py \
-    ├ S3 \
-        ├ lambda \
-            ├ lambda_code.zip \
-            └ layer.zip \
-        └ yaml \
-            └ CloudFormation.yaml \
-    ├ CloudWatch \
-        └ custom_config.json \
-    └ instance \
-        ├ backup_world.sh \
-        ├ gen_env.sh \
-        └ minecraft.service
+　　├ S3 \
+　　　　├ lambda \
+　　　　　　├ lambda_code.zip \
+　　　　　　└ layer.zip \
+　　　　└ yaml \
+　　　　　　└ CloudFormation.yaml \
+　　├ CloudWatch \
+　　　　└ custom_config.json \
+　　└ instance \
+　　　　├ backup_world.sh \
+　　　　├ gen_env.sh \
+　　　　└ minecraft.service
 ## botの設定
 S3にlayer.zip、discord-bot.zip、CloudFormation.yamlをcopy
 ### S3内の構成
@@ -57,7 +57,7 @@ fabric-mcserver \
 - stop
     - backup
         - off
-        - on
+        - on \
 startはインスタンスを起動し、IPアドレスを返す。typeを指定するとインスタンスタイプを起動時に変更できる。コマンド時にtypeを選択しない場合はデフォルトにsmallが設定されている。 \
 statusはインスタンスの現在の状態を返す。 \
 stopはインスタンスを停止させる。backup onを選択するとbackupをS3に保存した後にインスタンスを停止させる。コマンド時にtypeを選択しない場合はデフォルトにoffが設定されている。
