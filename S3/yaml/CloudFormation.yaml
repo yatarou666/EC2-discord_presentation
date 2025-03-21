@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  ApplicationID:
+    Type: String
+  PublicKey:
+    Type: String
+  EC2InstanceID:
+    Type: String
+  CodeS3BucketName:
+    Type: String
+  CodeS3Key:
+    Type: String
+  LayerS3BucketName:
+    Type: String
+  LayerS3Key:
+    Type: String
+
+Resources:
+  # API Gateway
+  ControlAPIGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: DiscordSlashCommandController-Api
+      ProtocolType: HTTP
+  ControlAPIGatewayIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref ControlAPIGateway
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt AppFunction.Arn
+      PayloadFormatVersion: 2.0
+  ControlAPIGatewayRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref ControlAPIGateway
+      RouteKey: POST /
+      Target: !Sub integrations/${ControlAPIGatewayIntegration}
+  ControlAPIGatewayStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref ControlAPIGateway
+      StageName: $default
+      AutoDeploy: true
+
+  # Lambda layer
+  LambdaLayer:
+    Type: "AWS::Lambda::LayerVersion"
+    Properties:
+      CompatibleRuntimes:
+        - python3.13
+      Content:
+        S3Bucket: !Ref LayerS3BucketName
+        S3Key: !Ref LayerS3Key
+      LayerName: DiscordSlashCommandController-Layer
+
+  # Lambda function
+  AppFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref CodeS3BucketName
+        S3Key: !Ref CodeS3Key
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      FunctionName: DiscordSlashCommandController-App
+      Layers:
+        - !Ref LambdaLayer
+      MemorySize: 1024
+      Timeout: 10
+      Environment:
+        Variables:
+          PUBLIC_KEY: !Ref PublicKey
+          APPLICATION_ID: !Ref ApplicationID
+      Role: !GetAtt LambdaExecutionRole.Arn
+  StartFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref CodeS3BucketName
+        S3Key: !Ref CodeS3Key
+      Handler: start.lambda_handler
+      Runtime: python3.13
+      FunctionName: DiscordSlashCommandController-Start
+      Layers:
+        - !Ref LambdaLayer
+      MemorySize: 1024
+      Timeout: 600
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref EC2InstanceID
+      Role: !GetAtt LambdaExecutionRole.Arn
+  StopFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref CodeS3BucketName
+        S3Key: !Ref CodeS3Key
+      Handler: stop.lambda_handler
+      Runtime: python3.13
+      FunctionName: DiscordSlashCommandController-Stop
+      Layers:
+        - !Ref LambdaLayer
+      MemorySize: 1024
+      Timeout: 60
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref EC2InstanceID
+      Role: !GetAtt LambdaExecutionRole.Arn
+  StatusFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !Ref CodeS3BucketName
+        S3Key: !Ref CodeS3Key
+      Handler: status.lambda_handler
+      Runtime: python3.13
+      FunctionName: DiscordSlashCommandController-Status
+      Layers:
+        - !Ref LambdaLayer
+      MemorySize: 1024
+      Timeout: 10
+      Environment:
+        Variables:
+          INSTANCE_ID: !Ref EC2InstanceID
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+  # Lambda execution log groups
+  AppFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AppFunction}
+      RetentionInDays: 30
+  StartFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${StartFunction}
+      RetentionInDays: 30
+  StopFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${StopFunction}
+      RetentionInDays: 30
+  StatusFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${StatusFunction}
+      RetentionInDays: 30
+
+  # Lambda invoke permission
+  ApiGWInvokeAppFunction:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt AppFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ControlAPIGateway}/*
+
+  # Lambda IAM Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - lambda:InvokeFunction
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceStatus
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                Effect: Allow
+                Resource: "*"
+          PolicyName: IPL-DiscordSlashCommandController2
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      RoleName: IRL-DiscordSlashCommandController2
+
+Outputs:
+  EndpointURL:
+    Value: !Sub https://${ControlAPIGateway}.execute-api.${AWS::Region}.${AWS::URLSuffix}/

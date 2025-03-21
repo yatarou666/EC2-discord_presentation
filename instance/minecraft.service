@@ -1,0 +1,30 @@
+[Unit]
+Description=Minecraft Fabric Server
+After=network.target
+
+[Service]
+WorkingDirectory=/home/ec2-user/fabric-server
+User=ec2-user
+
+# メモリ設定を動的に生成（gen_env.sh 実行）
+ExecStartPre=/home/ec2-user/gen_env.sh
+
+# 環境変数ファイルの読み込み
+EnvironmentFile=/home/ec2-user/fabric-server/.env
+
+# Java起動（evalで環境変数展開）
+ExecStart=/bin/bash -c 'eval exec /usr/bin/java -server $JAVA_MEM -jar /home/ec2-user/fabric-server/fabric-server-mc.1.21.4-loader.0.16.10-launcher.1.0.1.jar nogui'
+
+# サーバー停止時のコマンド（優しくセーブ＆停止）
+ExecStop=/bin/bash -c 'echo "say Server Shutdown. Saving map..." > /home/ec2-user/fabric-server/server.stdin; echo "save-all" > /home/ec2-user/fabric-server/server.stdin; echo "stop" > /home/ec2-user/fabric-server/server.stdin; sleep 10; kill -TERM $MAINPID'
+
+# ログ出力先
+StandardOutput=append:/home/ec2-user/fabric-server/server.log
+StandardError=append:/home/ec2-user/fabric-server/server.log
+
+# 自動再起動設定
+Restart=on-failure
+RestartSec=60s
+
+[Install]
+WantedBy=multi-user.target
